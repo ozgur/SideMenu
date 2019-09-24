@@ -69,6 +69,13 @@ internal protocol MenuModel {
     @objc optional func sideMenuDidDisappear(menu: SideMenuNavigationController, animated: Bool)
 }
 
+@objc public protocol SideMenuInteractionControllerDelegate {
+    @objc optional func sideMenuDidBeginInteraction(menu: SideMenuNavigationController)
+    @objc optional func sideMenuDidFinishInteraction(menu: SideMenuNavigationController)
+    @objc optional func sideMenuDidCancelInteraction(menu: SideMenuNavigationController)
+    @objc optional func sideMenuDidUpdateInteraction(menu: SideMenuNavigationController, progress: CGFloat)
+}
+
 internal protocol SideMenuNavigationControllerTransitionDelegate: class {
     func sideMenuTransitionDidDismiss(menu: Menu)
 }
@@ -127,6 +134,7 @@ open class SideMenuNavigationController: UINavigationController {
 
     /// Delegate for receiving appear and disappear related events. If `nil` the visible view controller that displays a `SideMenuNavigationController` automatically receives these events.
     public weak var sideMenuDelegate: SideMenuNavigationControllerDelegate?
+    public weak var sideMenuInteractionDelegate: SideMenuInteractionControllerDelegate?
 
     /// The swipe to dismiss gesture.
     open private(set) weak var swipeToDismissGesture: UIPanGestureRecognizer? = nil
@@ -174,12 +182,12 @@ open class SideMenuNavigationController: UINavigationController {
         super.init(coder: aDecoder)
         setup()
     }
-    
+
     override open func awakeFromNib() {
         super.awakeFromNib()
         sideMenuManager.setMenu(self, forLeftSide: leftSide)
     }
-    
+
     override open func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
 
@@ -193,7 +201,7 @@ open class SideMenuNavigationController: UINavigationController {
         foundViewController = nil
         activeDelegate?.sideMenuWillAppear?(menu: self, animated: animated)
     }
-    
+
     override open func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
@@ -206,7 +214,7 @@ open class SideMenuNavigationController: UINavigationController {
             activeDelegate?.sideMenuDidAppear?(menu: self, animated: animated)
         }
     }
-    
+
     override open func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
 
@@ -260,15 +268,15 @@ open class SideMenuNavigationController: UINavigationController {
             view.isHidden = true
         }
     }
-    
+
     override open func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
-        
+
         // Don't bother resizing if the view isn't visible
         guard let transitionController = transitionController, !view.isHidden else { return }
 
         rotating = true
-        
+
         let dismiss = self.presentingViewControllerUseSnapshot || self.dismissOnRotation
         coordinator.animate(alongsideTransition: { _ in
             if dismiss {
@@ -289,7 +297,7 @@ open class SideMenuNavigationController: UINavigationController {
         super.viewWillLayoutSubviews()
         transitionController?.layout()
     }
-    
+
     override open func pushViewController(_ viewController: UIViewController, animated: Bool) {
         guard viewControllers.count > 0 else {
             // NOTE: pushViewController is called by init(rootViewController: UIViewController)
@@ -412,7 +420,7 @@ extension SideMenuNavigationController: Model {
         get { return _leftSide.value }
         set { _leftSide.value = newValue }
     }
-  
+
     /// Indicates if the menu is anywhere in the view hierarchy, even if covered by another view controller.
     open override var isHidden: Bool {
         return super.isHidden
@@ -480,23 +488,33 @@ internal extension SideMenuNavigationController {
         let progress = max(min(distance * factor(presenting), 1), 0)
         switch (gesture.state) {
         case .began:
+            sideMenuInteractionDelegate?.sideMenuDidBeginInteraction?(menu: self)
             if !presenting {
                 dismissMenu(interactively: true)
             }
             fallthrough
         case .changed:
             transitionController?.handle(state: .update(progress: progress))
+            sideMenuInteractionDelegate?.sideMenuDidUpdateInteraction?(menu: self, progress: progress)
         case .ended:
             let velocity = gesture.xVelocity * factor(presenting)
             let finished = velocity >= 100 || velocity >= -50 && abs(progress) >= 0.5
             transitionController?.handle(state: finished ? .finish : .cancel)
+            if finished {
+              sideMenuInteractionDelegate?.sideMenuDidFinishInteraction?(menu: self)
+            }
+            else {
+              sideMenuInteractionDelegate?.sideMenuDidCancelInteraction?(menu: self)
+            }
         default:
             transitionController?.handle(state: .cancel)
+            sideMenuInteractionDelegate?.sideMenuDidCancelInteraction?(menu: self)
         }
     }
 
     func cancelMenuPan(_ gesture: UIPanGestureRecognizer) {
         transitionController?.handle(state: .cancel)
+        sideMenuInteractionDelegate?.sideMenuDidCancelInteraction?(menu: self)
     }
 
     func dismissMenu(animated flag: Bool = true, interactively: Bool = false, completion: (() -> Void)? = nil) {
