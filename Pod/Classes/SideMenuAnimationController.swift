@@ -135,6 +135,8 @@ private extension SideMenuAnimationController {
         } else {
             presentationController?.dismissalTransitionWillBegin()
         }
+
+        presentingViewController?.beginAppearanceTransition(!presenting, animated: true)
     }
 
     func transition(presenting: Bool) {
@@ -151,6 +153,7 @@ private extension SideMenuAnimationController {
         } else {
             presentationController?.dismissalTransitionDidEnd(completed)
         }
+        presentingViewController?.endAppearanceTransition()
         containerView?.isUserInteractionEnabled = true
     }
 

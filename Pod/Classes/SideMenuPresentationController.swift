@@ -88,7 +88,7 @@ internal final class SideMenuPresentationController {
 
         guard let statusBarView = statusBarView else { return }
 
-        var statusBarFrame: CGRect = self.statusBarFrame
+      var statusBarFrame: CGRect = self.statusBarFrame
         statusBarFrame.size.height -= containerView.frame.minY
         statusBarView.frame = statusBarFrame
     }
